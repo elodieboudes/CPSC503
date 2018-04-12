@@ -1,0 +1,814 @@
+% lane counter data 
+% Written by Elodie S. Boudes
+% Winter 2018 
+%
+
+clear all
+
+% select raw data and read them 
+[filename,pathname] = uigetfile('*.csv','Select the lane counter data file'); 
+RoadDataT = readtable(filename); 
+
+
+% select weather data and read them 
+[filename2,pathname2] = uigetfile('*.csv','Select the weather data file'); 
+WeatherDataT = readtable(filename2);
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Lane counter data
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+lanes = max(RoadDataT.channel);
+temp = table2array(RoadDataT(:,2:end));
+
+row = size(temp,1) / lanes;
+col = size(temp,2) - 1 ; 
+
+RoadData=zeros(row, col, lanes);
+for l = 1:lanes
+    temp2 = temp(temp(:,1)==l,:);
+    temp3 = temp2(:,2:end);
+    RoadData(:,:,l) = reshape(temp3,row,[]);
+    clear temp2; 
+    clear temp3;
+end
+clear temp; 
+clear col; 
+
+
+% Exctract day (number and name) from date 
+RDL1 = RoadDataT(RoadDataT.channel==1, :);
+datetimevector = RDL1.datetime;
+datetimevector = char(datetimevector); 
+
+for i=1: length(datetimevector)    
+    datetimesplit(i,:) = strsplit(datetimevector(i,:),'-');
+end 
+
+day=datetimesplit(:,1);
+hour=datetimesplit(:,2); 
+clear datetimesplit; 
+
+%format dd mm yyyy
+for i=1: length(day)
+    dvector(i,:)= strcat(day{i}(3:4), '-',day{i}(1:2), '-20',day{i}(5:6));
+end
+[daynumber,dayname]= weekday(dvector);
+
+ 
+% total cars per time per lane total_car(time,lane) 
+totalcar = zeros(row, lanes); 
+for l = 1: lanes   
+    totalcar(:,l) =  sum(RoadData(:,1:13,l),2);
+end
+totalcar_alllanes = sum(totalcar(:,:),2); 
+
+total_nb_car = sum(totalcar_alllanes);
+
+totalcar_alllanes_day = zeros(7,1); 
+for i=1: row
+    if (daynumber(i) == 1 )
+        totalcar_alllanes_day(1) = totalcar_alllanes_day(1) +  totalcar_alllanes(i);
+    end
+    if (daynumber(i) == 2 )
+        totalcar_alllanes_day(2) = totalcar_alllanes_day(2) +  totalcar_alllanes(i);
+    end
+    if (daynumber(i) == 3 )
+        totalcar_alllanes_day(3) = totalcar_alllanes_day(3) +  totalcar_alllanes(i);
+    end
+    if (daynumber(i) == 4 )
+        totalcar_alllanes_day(4) = totalcar_alllanes_day(4) +  totalcar_alllanes(i);
+    end
+    if (daynumber(i) == 5 )
+        totalcar_alllanes_day(5) = totalcar_alllanes_day(5) +  totalcar_alllanes(i);
+    end
+    if (daynumber(i) == 6 )
+        totalcar_alllanes_day(6) = totalcar_alllanes_day(6) +  totalcar_alllanes(i);
+    end
+    if (daynumber(i) == 7 )
+        totalcar_alllanes_day(7) = totalcar_alllanes_day(7) +  totalcar_alllanes(i);
+    end      
+end
+
+totalcar_day = zeros(7,1,3); 
+
+for l=1:lanes
+    for i=1: row
+        if (daynumber(i) == 1 )
+            totalcar_day(1,l) = totalcar_day(1,l) +  totalcar(i,l);
+        end
+        if (daynumber(i) == 2 )
+            totalcar_day(2,l) = totalcar_day(2,l) +  totalcar(i,l);
+        end
+        if (daynumber(i) == 3 )
+            totalcar_day(3,l) = totalcar_day(3,l) +  totalcar(i,l);
+        end
+        if (daynumber(i) == 4 )
+            totalcar_day(4,l) = totalcar_day(4,l) +  totalcar(i,l);
+        end
+        if (daynumber(i) == 5 )
+            totalcar_day(5,l) = totalcar_day(5,l) +  totalcar(i,l);
+        end
+        if (daynumber(i) == 6 )
+            totalcar_day(6,l) = totalcar_day(6,l) +  totalcar(i,l);
+        end
+        if (daynumber(i) == 7 )
+            totalcar_day(7,l) = totalcar_day(7,l) +  totalcar(i,l);
+        end      
+    end
+    
+end
+
+
+% trafic per day east bound Crowchild just west of Shaganappi
+figure
+legend2={'Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'}; 
+bar(totalcar_alllanes_day)
+title('Trafic per day');
+set(gca,'xticklabel',legend2)
+ylabel('Number of cars')
+
+
+% traffic per day per lane 
+for l =1 : lanes
+    figure
+    d={'Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'}; 
+    bar(totalcar_day(:,l))
+    title('Trafic per day');
+    set(gca,'xticklabel',d)
+    ylabel('Number of cars')
+    ylim([0, 60000])
+end
+clear d; 
+
+
+figure 
+for l = 1 : lanes
+    hold on 
+    d={'Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'}; 
+    plot(totalcar_day(:,l));
+    title('Trafic per day');
+    set(gca,'xticklabel',d)
+    ylabel('Number of cars')
+    ylim([0, 60000])
+    hold off
+end
+
+
+% traffic per 15 min per lane and total 
+
+figure;
+%bar(totalcar_alllanes)
+for l = 1: lanes 
+    hold on
+    bar(totalcar(:,l))
+end 
+hold off
+legend('Lane 1', 'Lane 2', 'Lane 3'); % ESB to modify 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Rush hour 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+% determining rush hours from total number of cars per time slot 
+rushhourbased = mean(totalcar_alllanes) * 2; 
+
+rushhour_nbcar_binary = (totalcar_alllanes > rushhourbased); 
+rushhour_nbcar = (totalcar_alllanes > rushhourbased) .* totalcar_alllanes;
+
+figure; 
+title('Total number of cars and rush hours') 
+hold on
+plot(totalcar_alllanes);
+plot(rushhour_nbcar,'r')
+legend('Traffic','Traffic during rush hour')
+hold off 
+
+% get time of rush hours
+hour_rush = hour(rushhour_nbcar_binary);  
+
+% ESB can't find it 
+% 6:45 to 9:15 M-F 
+% 18:30 on F night
+% 11 on Sa morning (the next morning) 
+
+% abnormaly on rush hour time last Monday 7:45 to 9:45 
+% due to time change on November 5th 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% speed per lane
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% 0-58 58-82 82-98 98-129 129- 
+nb_bin = 5; 
+speed = zeros(row,13, lanes); 
+speed5 = zeros(row, nb_bin , lanes); 
+
+for l=1: lanes
+    speed(:,:,l) = RoadData(:,1:13,l);  
+    
+    speed5(:,1,l) = sum(speed(:,1:3,l),2); 
+    speed5(:,2,l) = sum(speed(:,4:6,l),2); 
+    speed5(:,3,l) = sum(speed(:,7:8,l),2); 
+    speed5(:,4,l) = sum(speed(:,9:12,l),2); 
+    speed5(:,5,l) = sum(speed(:,13,l),2); 
+    
+end
+
+total_speed5 = sum(speed5(:,:,:),3); 
+
+
+
+for l = 1:lanes
+    figure
+    hold on 
+    title(['Lane ', int2str(l)]); 
+    for b = 1: nb_bin
+     plot(speed5(:,b,l))
+     
+    end
+    ylabel('Number of cars')
+    hold off 
+    legend('0 to 58','58 to 82', '82 to 98', '98-129', '>129');
+end
+
+% number of car per speed bin 
+
+% 12207      149560      519596      141075         644
+
+% percentage of cars travelling at a certain speed
+percent_car_speed5 = sum(total_speed5) ./ total_nb_car; 
+% 0-58      58-82     82-98     98-129    129- 
+% 0.0148    0.1817    0.6313    0.1714    0.0008
+
+% car speeding 
+car_speeding = sum(percent_car_speed5(3:end)); 
+
+% percent car for each lanes 
+percent_car_speed5_all = nan(row, 5, lanes); % 5 gap 
+
+for l = 1 : lanes
+   
+    for i = 1 : length(speed)   
+        
+        for b = 1 : 5
+        % x % of cars are driving at more than left edge of the bins so 0, 58,
+        % 82, 98 
+            if (totalcar(i,l) == 0 )
+                divisor = 1; 
+            else 
+                divisor = totalcar(i,l);
+            end  
+            percent_car_speed5_all(i,b,l) = speed5(i,b,l) / divisor;
+
+        end
+           
+    end
+end
+
+
+
+% determining threshold speed and corresponding safety distance
+%0-58 58-82 82-98 98-129 
+% using the 2s rule for security distance 
+
+threshold_speed = [0, 58, 82, 98, 129 ];
+bins = size(threshold_speed,2) - 1; 
+threshold_gap = threshold_speed * (1000 * 2 / 3600); 
+
+% gap per lane in s 
+gap_vector = [0,1,3,5,10,20,30];
+gp = size(gap_vector,2)-1; 
+gap = nan(row,gp, lanes); 
+
+for l=1: lanes
+    gap(:,:,l) = RoadData(:,19:24,l);  
+end
+clear l; 
+clear gp;
+
+total_gap = sum(gap(:,:,:),3); 
+
+% percentage of cars travelling within a certain gap 
+percent_car_gap = sum(total_gap) ./ total_nb_car; 
+% car with unsafe gap < 1s 
+car_gapunsafe = percent_car_gap(1);
+
+% <1        1-3       3-5       5-10      10-20     20-30 
+% 0.3805    0.1606    0.1741    0.0962    0.0275    0.0353
+
+
+
+% percent car for each lanes 
+
+percent_car_gap_all = nan(row, 6, lanes); 
+
+for l = 1 : lanes
+   
+    for i = 1 : length(speed)   
+        
+        for b = 1 : 6
+            if (totalcar(i,l) == 0 )
+                divisor = 1; 
+            else 
+                divisor = totalcar(i,l);
+            end  
+            percent_car_gap_all(i,b,l) = gap(i,b,l) / divisor;
+
+        end
+           
+    end
+end
+clear l;
+clear i;
+clear b;
+
+
+
+
+
+% percentage of cars during rush hours 
+
+rushhour_nbcar_binary2 = double(rushhour_nbcar_binary);
+
+percentcar_speed5_rushhour2 = rushhour_nbcar_binary2 .* percent_car_speed5_all ;
+percentcar_gap_rushhour2 = rushhour_nbcar_binary2 .* percent_car_gap_all ; 
+
+percentcar_speed5_rushhour = double(percentcar_speed5_rushhour2);
+percentcar_gap_rushhour = double(percentcar_gap_rushhour2); 
+
+
+%ESB error - to modified to do similar to all time 
+for l = 1 : lanes
+    for i = 1 : row 
+        temp1 = sum(percentcar_speed5_rushhour (i,:,l) ) ; 
+        temp2 = sum(percentcar_gap_rushhour (i,:,l) ) ; 
+    
+        if (temp1 == 0)
+            percentcar_speed5_rushhour(i,:,l) = nan; 
+        end
+        if (temp2 == 0)
+            percentcar_gap_rushhour(i,:,l) = nan; 
+        end       
+    end
+    
+end
+
+nanmean(percentcar_speed5_rushhour(:,:,1))
+nanmean(percentcar_speed5_rushhour(:,:,2))
+nanmean(percentcar_speed5_rushhour(:,:,3))
+
+
+% trying new way to do it 
+percent_car_gap_all_rush = nan(row, 6, lanes); 
+
+for l = 1 : lanes
+   
+    for i = 1 : length(speed)   
+        
+        if (rushhour_nbcar_binary2(i) == 1)
+            for b = 1 : 6
+             if (totalcar(i,l) == 0 )
+                  divisor = 1; 
+             else 
+                 divisor = totalcar(i,l);
+             end  
+              percent_car_gap_all_rush(i,b,l) = gap(i,b,l) / divisor;
+
+            end
+        end    
+    end
+end
+
+nanmean(percent_car_gap_all_rush)
+
+
+nonrushhour_nbcar_binary = ~rushhour_nbcar_binary; 
+
+nonrushhour_nbcar_binary2 = double(nonrushhour_nbcar_binary);
+
+percent_car_gap_all_nonrush = nan(row, 6, lanes); 
+
+for l = 1 : lanes
+   
+    for i = 1 : length(speed)   
+        
+        if (nonrushhour_nbcar_binary2(i) == 1)
+            for b = 1 : 6
+             if (totalcar(i,l) == 0 )
+                  divisor = 1; 
+             else 
+                 divisor = totalcar(i,l);
+             end  
+              percent_car_gap_all_nonrush(i,b,l) = gap(i,b,l) / divisor;
+
+            end
+        end    
+    end
+end
+
+nanmean(percent_car_gap_all_nonrush)
+
+
+
+percent_car_speed_all_rush = nan(row, 5, lanes); 
+
+for l = 1 : lanes
+   
+    for i = 1 : length(speed)   
+        
+        if (rushhour_nbcar_binary2(i) == 1)
+            for b = 1 : 5
+             if (totalcar(i,l) == 0 )
+                  divisor = 1; 
+             else 
+                 divisor = totalcar(i,l);
+             end  
+              percent_car_speed_all_rush(i,b,l) = speed5(i,b,l) / divisor;
+
+            end
+        end    
+    end
+end
+
+nanmean(100*percent_car_speed_all_rush)
+
+
+percent_car_speed_all_nonrush = nan(row, 5, lanes); 
+
+for l = 1 : lanes
+   
+    for i = 1 : length(speed)   
+        
+        if (nonrushhour_nbcar_binary2(i) == 1)
+            for b = 1 : 5
+             if (totalcar(i,l) == 0 )
+                  divisor = 1; 
+             else 
+                 divisor = totalcar(i,l);
+             end  
+              percent_car_speed_all_nonrush(i,b,l) = speed5(i,b,l) / divisor;
+
+            end
+        end    
+    end
+end
+
+nanmean(100*percent_car_speed_all_nonrush)
+
+
+% end of trying 
+
+
+
+   %  percentcar_speed5_rushhour(sum(percentcar_speed5_rushhour,2) == 0) = nan; 
+
+% plot percent speed vs percent gap during rush hour 
+L1_speed_rush = sum(percentcar_speed5_rushhour(:,3:end,1),2);
+L1_speed_rush(L1_speed_rush == 0) = nan; 
+L1_gap_rush = percentcar_gap_rushhour(:,1,1);
+L1_gap_rush(L1_gap_rush == 0) = nan; 
+
+L2_speed_rush = sum(percentcar_speed5_rushhour(:,3:end,2),2);
+L2_speed_rush(L2_speed_rush == 0) = nan; 
+L2_gap_rush = percentcar_gap_rushhour(:,1,2);
+L2_gap_rush(L2_gap_rush == 0) = nan; 
+
+L3_speed_rush = sum(percentcar_speed5_rushhour(:,3:end,3),2);
+L3_speed_rush(L3_speed_rush == 0) = nan; 
+L3_gap_rush = percentcar_gap_rushhour(:,1,3);
+L3_gap_rush(L3_gap_rush == 0) = nan; 
+
+C1_x = nanmean(L1_speed_rush * 100);
+C1_y = nanmean(L1_gap_rush * 100);
+C2_x = nanmean(L2_speed_rush * 100);
+C2_y = nanmean(L2_gap_rush * 100);
+C3_x = nanmean(L3_speed_rush * 100);
+C3_y = nanmean(L3_gap_rush * 100);
+
+figure
+ylim([0,100])
+xlim([0,100])
+ylabel('Percentage of vehicles not respecting the safety distance')
+xlabel('Percentage of vehicles not respecting the speed limit')
+title('Lane 1')
+hold on
+scatter(L1_speed_rush * 100, L1_gap_rush * 100)
+scatter(C1_x, C1_y,100,  'o', 'MarkerFaceColor', 'r')
+hold off
+
+figure
+ylim([0,100])
+xlim([0,100])
+ylabel('Percentage of vehicles not respecting the safety distance')
+xlabel('Percentage of vehicles not respecting the speed limit')
+title('Lane 2')
+hold on
+scatter(L2_speed_rush * 100, L2_gap_rush * 100)
+scatter(C2_x, C2_y,100,  'o', 'MarkerFaceColor', 'r')
+hold off
+
+figure
+ylim([0,100])
+xlim([0,100])
+ylabel('Percentage of vehicles not respecting the safety distance')
+xlabel('Percentage of vehicles not respecting the speed limit')
+title('Lane 3')
+hold on
+scatter(L3_speed_rush * 100, L3_gap_rush * 100)
+scatter(C3_x, C3_y,100,  'o', 'MarkerFaceColor', 'r')
+hold off
+
+
+
+
+% percentage of cars outside  rush hours 
+
+
+percentcar_speed5_nonrushhour2 = nonrushhour_nbcar_binary2 .* percent_car_speed5_all ;
+percentcar_gap_nonrushhour2 = nonrushhour_nbcar_binary2 .* percent_car_gap_all ; 
+
+percentcar_speed5_nonrushhour = double(percentcar_speed5_nonrushhour2);
+percentcar_gap_nonrushhour = double(percentcar_gap_nonrushhour2); 
+
+for l = 1 : lanes
+    for i = 1 : row 
+        temp1 = sum(percentcar_speed5_nonrushhour (i,:,l) ) ; 
+        temp2 = sum(percentcar_gap_nonrushhour (i,:,l) ) ; 
+    
+        if (temp1 == 0)
+            percentcar_speed5_nonrushhour(i,:,l) = nan; 
+        end
+        if (temp2 == 0)
+            percentcar_gap_nonrushhour(i,:,l) = nan; 
+        end       
+    end
+    
+end
+
+nanmean(percentcar_speed5_nonrushhour(:,:,1))
+nanmean(percentcar_speed5_nonrushhour(:,:,2))
+nanmean(percentcar_speed5_nonrushhour(:,:,3))
+
+nanmean(100*percentcar_gap_nonrushhour(:,:,1))
+nanmean(100*percentcar_gap_nonrushhour(:,:,2))
+nanmean(100*percentcar_gap_nonrushhour(:,:,3))
+
+
+
+% plot percent speed vs percent gap outside  rush hour 
+L1_speed_nonrush = sum(percentcar_speed5_nonrushhour(:,3:end,1),2);
+L1_speed_nonrush(L1_speed_nonrush == 0) = nan; 
+L1_gap_nonrush = percentcar_gap_nonrushhour(:,1,1);
+L1_gap_nonrush(L1_gap_nonrush == 0) = nan; 
+
+L2_speed_nonrush = sum(percentcar_speed5_nonrushhour(:,3:end,2),2);
+L2_speed_nonrush(L2_speed_nonrush == 0) = nan; 
+L2_gap_nonrush = percentcar_gap_nonrushhour(:,1,2);
+L2_gap_nonrush(L2_gap_nonrush == 0) = nan; 
+
+L3_speed_nonrush = sum(percentcar_speed5_nonrushhour(:,3:end,3),2);
+L3_speed_nonrush(L3_speed_nonrush == 0) = nan; 
+L3_gap_nonrush = percentcar_gap_nonrushhour(:,1,3);
+L3_gap_nonrush(L3_gap_nonrush == 0) = nan; 
+
+
+G1_x = nanmean(L1_speed_nonrush * 100);
+G1_y = nanmean(L1_gap_nonrush * 100);
+G2_x = nanmean(L2_speed_nonrush * 100);
+G2_y = nanmean(L2_gap_nonrush * 100);
+G3_x = nanmean(L3_speed_nonrush * 100);
+G3_y = nanmean(L3_gap_nonrush * 100);
+
+figure
+ylim([0,100])
+xlim([0,100])
+ylabel('Percentage of vehicles not respecting the safety distance')
+xlabel('Percentage of vehicles not respecting the speed limit')
+title('Lane 1')
+hold on
+scatter(L1_speed_nonrush * 100, L1_gap_nonrush * 100)
+scatter(G1_x, G1_y,100,  'o', 'MarkerFaceColor', 'r')
+hold off
+
+figure
+ylim([0,100])
+xlim([0,100])
+ylabel('Percentage of vehicles not respecting the safety distance')
+xlabel('Percentage of vehicles not respecting the speed limit')
+title('Lane 2')
+hold on
+scatter(L2_speed_nonrush * 100, L2_gap_nonrush * 100)
+scatter(G2_x, G2_y,100,  'o', 'MarkerFaceColor', 'r')
+hold off
+
+figure
+ylim([0,100])
+xlim([0,100])
+ylabel('Percentage of vehicles not respecting the safety distance')
+xlabel('Percentage of vehicles not respecting the speed limit')
+title('Lane 3')
+hold on
+scatter(L3_speed_nonrush * 100, L3_gap_nonrush * 100)
+scatter(G3_x, G3_y,100,  'o', 'MarkerFaceColor', 'r')
+hold off
+
+
+
+
+
+
+% % all cars
+% figure
+% subplot (1,3,1)
+% title ("Lane 1")
+% scatter(percent_car_gap_all(:,1,1),sum(percent_car_speed5_all(:,3:end,1),2))
+% subplot(1,3,2)
+% title ("Lane 2")
+% scatter(percent_car_gap_all(:,1,2),sum(percent_car_speed5_all(:,3:end,2),2))
+% subplot(1,3,3)
+% title ("Lane 3")
+% scatter(percent_car_gap_all(:,1,3),sum(percent_car_speed5_all(:,3:end,3),2))
+% 
+
+
+% 
+for b = 1 : 5
+    for l = 1 : 3
+        temp = percentcar_speed5_rushhour(:,b,l); 
+        result_rushhour(b,l) = mean(nonzeros(temp));
+        temp2 = percentcar_speed5_nonrushhour(:,b,l); 
+        result_nonrushhour(b,l) = mean(nonzeros(temp2));
+    end
+    
+end
+
+
+for b = 1 : 6
+    for l = 1 : 3
+        temp = percentcar_gap_rushhour(:,b,l); 
+        result_rushhourG(b,l) = mean(nonzeros(temp));
+        temp2 = percentcar_gap_nonrushhour(:,b,l); 
+        result_nonrushhourG(b,l) = mean(nonzeros(temp2));
+    end       
+end
+        
+R_rushhour = [result_rushhour(:,1); result_rushhour(:,2) ;result_rushhour(:,3)] ;
+R_nonrushhour = [result_nonrushhour(:,1); result_nonrushhour(:,2) ;result_nonrushhour(:,3)] ;
+
+R_rushhourG = [result_rushhourG(:,1); result_rushhourG(:,2) ;result_rushhourG(:,3)] ;
+R_nonrushhourG = [result_nonrushhourG(:,1); result_nonrushhourG(:,2) ;result_nonrushhourG(:,3)] ;
+
+
+figure
+scatter(R_rushhour, R_nonrushhour)
+
+figure 
+scatter(R_rushhourG, R_nonrushhourG)
+
+
+
+
+
+
+% relation with precipitation and temperature 
+
+% calculate average gap and speed per day 
+day_measure_speed5 = nan(26,5,3);
+day_measure_gap = nan(26,6,3);
+
+
+% first day is partial 
+day_measure_speed5(1,:,:) = mean(percent_car_speed5_all(1:44,:,:));
+day_measure_gap(1,:,:) = mean(percent_car_gap_all(1:44,:,:));
+
+
+for i = 2: 26
+    s = 45  * (i-1) ; 
+    e = s + 96; 
+    
+    day_measure_speed5(i,:,:) = mean(percent_car_speed5_all(s:e,:,:));
+    day_measure_gap(i,:,:) = mean(percent_car_gap_all(s:e,:,:));
+
+end
+
+for b = 1 : 3 
+
+    figure
+    hold on
+    for i = 1 : 5
+
+        scatter(WeatherDataT.precipitation, day_measure_speed5(:,i,b) )
+    end
+    hold off
+
+    figure
+    hold on
+    for i = 1 : 5
+
+        scatter(WeatherDataT.precipitation, day_measure_gap(:,i,b) )
+    end
+    hold off
+
+end
+
+
+figure
+for b = 1 : 3 
+
+    figure
+    scatter( mean(day_measure_speed5(:,:,b),2), mean(day_measure_gap(:,:,b),2) )
+end
+
+for da = 1 : 26
+   if (WeatherDataT.precipitation(da) == 0)
+    precipitation_null(da) =  1;
+   else
+       precipitation_null(da) = 0; 
+
+   end
+   if (WeatherDataT.precipitation(da) > 0 && WeatherDataT.precipitation(da) <=2)
+     precipitation_low(da) =  1;
+   else
+       precipitation_low(da) = 0; 
+   end  
+   if (WeatherDataT.precipitation(da) > 2 )
+     precipitation_high(da) =  1;
+   else
+       precipitation_high(da) = 0; 
+   end     
+end
+
+day_measure_speed5_null = nan(26,5);
+day_measure_speed5_low = nan(26,5);
+day_measure_speed5_high = nan(26,5);
+
+day_measure_gap_null = nan(26,6);
+day_measure_gap_low = nan(26,6);
+day_measure_gap_high = nan(26,6);
+
+for da = 1 : 26
+    for b = 1 : 5
+        if (precipitation_null(da) ~= 0) 
+            day_measure_speed5_null(da,b) = day_measure_speed5(da,b) .* precipitation_null(da) ;
+        end
+        if (precipitation_low(da) ~= 0) 
+            day_measure_speed5_low(da,b) = day_measure_speed5(da,b) .* precipitation_low(da) ;
+        end
+        if (precipitation_high(da) ~= 0)
+            day_measure_speed5_high(da,b) = day_measure_speed5(da,b) .* precipitation_high(da) ;
+        end
+        
+    end
+end
+
+for da = 1 : 26
+    for b = 1 : 6
+        if (precipitation_null(da) ~= 0) 
+            day_measure_gap_null(da,b) = day_measure_gap(da,b) .* precipitation_null(da) ;
+        end
+        if (precipitation_low(da) ~= 0) 
+            day_measure_gap_low(da,b) = day_measure_gap(da,b) .* precipitation_low(da) ;
+        end
+        if (precipitation_high(da) ~= 0)
+            day_measure_gap_high(da,b) = day_measure_gap(da,b) .* precipitation_high(da) ;
+        end
+        
+    end
+end
+
+temp_null = nanmean(day_measure_speed5_null);
+temp_low = nanmean(day_measure_speed5_low);
+temp_high = nanmean(day_measure_speed5_high);
+
+
+temp_gap_null = nanmean(day_measure_gap_null)
+temp_gap_low = nanmean(day_measure_gap_low)
+temp_gap_high = nanmean(day_measure_gap_high)
+
+precipitation_null = precipitation_null'; 
+precipitation_high = precipitation_high';
+precipitation_low = precipitation_low';
+
+
+null = sum(precipitation_null); 
+low = sum(precipitation_low); 
+high = sum(precipitation_high); 
+
+
+
+
+
+% stat
+a = percent_car_gap_all .* rushhour_nbcar_binary;
+a (a==0) = nan; 
+nanmean(a) 
+
+
+b = percent_car_gap_all .* nonrushhour_nbcar_binary;
+b (b==0) = nan; 
+nanmean(b) 
